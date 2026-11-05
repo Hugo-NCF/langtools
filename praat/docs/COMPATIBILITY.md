@@ -28,10 +28,10 @@ measured numerical or editor parity with Praat.
 
 ## Deliberately incomplete
 
-- Acoustic analysis, numerical queries/measurement exports, playback and recording.
+- Acoustic analysis, numerical queries/measurement exports and recording.
 - Boundary merge/delete until the D03 discrepancy has a pinned-runtime fixture;
   selected-text/range split, multi-tier drag/snapping, search, add/remove tier UI.
-- Independent editor windows, stacked graphical tier canvas, complete menus,
+- Independent editor windows, complete menus,
   high-DPI/IME/accessibility parity and original keyboard shortcut parity.
 - Complete typed registry/dialog schema, change-set notifications, analysis services.
 - Generic object codecs, binary TextGrid, legacy encodings and trigraph rendering.
@@ -65,3 +65,14 @@ Before claiming interoperability, open exported fixture TextGrids in the chosen
 Praat release and record the executable hash, settings, expected geometry/text,
 and results. Future numerical work must follow the comparison policy in §17 of
 the master specification.
+
+## Playback and tier-view increment
+
+[PR #16](https://github.com/mhulden/langtools/pull/16) adds selected playback with
+device-clock-derived estimated position, bounded prefetch, explicit errors, and a
+linked graphical tier view with click selection and single-mark drag/cancel/undo.
+Point moves retain IDs and sorted order; full reference-editor behavior is not
+established. See [PLAYBACK_AND_TIERS.md](PLAYBACK_AND_TIERS.md) for supported
+operations, test evidence, soft real-time limitations and unmeasured hardware timing.
+Microphone input, pinned-reference parity and real-device/loopback validation are
+not established by offscreen or fake-sink tests.

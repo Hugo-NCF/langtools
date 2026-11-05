@@ -107,3 +107,29 @@ class MoveBoundary:
                 )
                 return replace_tier(grid, tier.id, replace(tier, intervals=intervals))
         raise InvalidInput("Choose an internal boundary.")
+
+
+@dataclass(frozen=True)
+class MovePoint:
+    tier_id: str
+    point_id: str
+    time: float
+
+    def apply(self, grid: TextGrid) -> TextGrid:
+        tier = find_tier(grid, self.tier_id)
+        if not isinstance(tier, PointTier):
+            raise InvalidInput("Point movement needs a point tier.")
+        if not tier.xmin <= self.time <= tier.xmax:
+            raise InvalidInput("Point must remain inside its tier domain.")
+        if not any(point.id == self.point_id for point in tier.points):
+            raise InvalidInput("Point no longer exists.")
+        points = tuple(
+            sorted(
+                (
+                    replace(point, time=self.time) if point.id == self.point_id else point
+                    for point in tier.points
+                ),
+                key=lambda point: point.time,
+            )
+        )
+        return replace_tier(grid, tier.id, replace(tier, points=points))

@@ -2,7 +2,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import uuid4
 
-from ..annotation.commands import InsertPoint, MoveBoundary, SetLabel, SplitInterval
+from ..annotation.commands import InsertPoint, MoveBoundary, MovePoint, SetLabel, SplitInterval
 from ..annotation.session import AnnotationSession
 from ..errors import InvalidInput
 from ..io.audio import AudioFile, signature
@@ -24,6 +24,9 @@ ANNOTATION_COMMANDS = {
         CommandSpec("annotation.split_interval", SplitInterval, "Split at a collapsed text caret."),
         CommandSpec("annotation.insert_point", InsertPoint, "Insert an ordered labeled point."),
         CommandSpec("annotation.move_boundary", MoveBoundary, "Move a shared internal endpoint."),
+        CommandSpec(
+            "annotation.move_point", MovePoint, "Move a point, retaining identity and sorted order."
+        ),
     )
 }
 
