@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-made for elan-ng tests (REIMPLEMENTATION.md §3.1.2, §6.2). An EAF 2.8 file, which is the
+     first version with LICENSE, LANGUAGE, multilingual controlled vocabularies (CV_ENTRY_ML with
+     one CVE_VALUE per language), LANG_REF and CVE_REF on annotations, LANG_REF and EXT_REF on
+     tiers. The writer always saves 3.0, so this file checks that the 2.8 content survives. -->
+<ANNOTATION_DOCUMENT AUTHOR="Tester" DATE="2026-11-05T10:05:00+01:00" FORMAT="2.8" VERSION="2.8"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://www.mpi.nl/tools/elan/EAFv2.8.xsd">
+    <LICENSE LICENSE_URL="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</LICENSE>
+    <HEADER MEDIA_FILE="" TIME_UNITS="milliseconds">
+        <PROPERTY NAME="URN">urn:nl-mpi-tools-elan-eaf:9a2c4e6f-1b3d-4f5a-8c7e-2d4f6a8b0c1e</PROPERTY>
+        <PROPERTY NAME="lastUsedAnnotationId">5</PROPERTY>
+    </HEADER>
+    <TIME_ORDER>
+        <TIME_SLOT TIME_SLOT_ID="ts1" TIME_VALUE="0"/>
+        <TIME_SLOT TIME_SLOT_ID="ts2" TIME_VALUE="1000"/>
+        <TIME_SLOT TIME_SLOT_ID="ts3" TIME_VALUE="2000"/>
+    </TIME_ORDER>
+    <TIER ANNOTATOR="HF" DEFAULT_LOCALE="en" LANG_REF="eng" LINGUISTIC_TYPE_REF="utterance" PARTICIPANT="Speaker A" TIER_ID="utterance">
+        <ANNOTATION>
+            <ALIGNABLE_ANNOTATION ANNOTATION_ID="a1" LANG_REF="eng" TIME_SLOT_REF1="ts1" TIME_SLOT_REF2="ts3">
+                <ANNOTATION_VALUE>hallo daar</ANNOTATION_VALUE>
+            </ALIGNABLE_ANNOTATION>
+        </ANNOTATION>
+    </TIER>
+    <TIER EXT_REF="er1" LANG_REF="nld" LINGUISTIC_TYPE_REF="words" PARENT_REF="utterance" PARTICIPANT="Speaker A" TIER_ID="words">
+        <ANNOTATION>
+            <ALIGNABLE_ANNOTATION ANNOTATION_ID="a2" LANG_REF="nld" TIME_SLOT_REF1="ts1" TIME_SLOT_REF2="ts2">
+                <ANNOTATION_VALUE>hallo</ANNOTATION_VALUE>
+            </ALIGNABLE_ANNOTATION>
+        </ANNOTATION>
+        <ANNOTATION>
+            <ALIGNABLE_ANNOTATION ANNOTATION_ID="a3" LANG_REF="nld" TIME_SLOT_REF1="ts2" TIME_SLOT_REF2="ts3">
+                <ANNOTATION_VALUE>daar</ANNOTATION_VALUE>
+            </ALIGNABLE_ANNOTATION>
+        </ANNOTATION>
+    </TIER>
+    <TIER LINGUISTIC_TYPE_REF="pos" PARENT_REF="words" PARTICIPANT="Speaker A" TIER_ID="pos">
+        <ANNOTATION>
+            <REF_ANNOTATION ANNOTATION_ID="a4" ANNOTATION_REF="a2" CVE_REF="cve-int" LANG_REF="eng">
+                <ANNOTATION_VALUE>INT</ANNOTATION_VALUE>
+            </REF_ANNOTATION>
+        </ANNOTATION>
+        <ANNOTATION>
+            <REF_ANNOTATION ANNOTATION_ID="a5" ANNOTATION_REF="a3" CVE_REF="cve-adv" LANG_REF="eng">
+                <ANNOTATION_VALUE>ADV</ANNOTATION_VALUE>
+            </REF_ANNOTATION>
+        </ANNOTATION>
+    </TIER>
+    <LINGUISTIC_TYPE GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="utterance" TIME_ALIGNABLE="true"/>
+    <LINGUISTIC_TYPE CONSTRAINTS="Time_Subdivision" GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="words" TIME_ALIGNABLE="true"/>
+    <LINGUISTIC_TYPE CONSTRAINTS="Symbolic_Association" CONTROLLED_VOCABULARY_REF="pos" GRAPHIC_REFERENCES="false" LINGUISTIC_TYPE_ID="pos" TIME_ALIGNABLE="false"/>
+    <LOCALE COUNTRY_CODE="US" LANGUAGE_CODE="en"/>
+    <LANGUAGE LANG_DEF="http://cdb.iso.org/lg/CDB-00138502-001" LANG_ID="eng" LANG_LABEL="English (eng)"/>
+    <LANGUAGE LANG_DEF="http://cdb.iso.org/lg/CDB-00138580-001" LANG_ID="nld" LANG_LABEL="Dutch (nld)"/>
+    <CONSTRAINT DESCRIPTION="Time subdivision of parent annotation's time interval, no time gaps allowed within this interval" STEREOTYPE="Time_Subdivision"/>
+    <CONSTRAINT DESCRIPTION="Symbolic subdivision of a parent annotation. Annotations refering to the same parent are ordered" STEREOTYPE="Symbolic_Subdivision"/>
+    <CONSTRAINT DESCRIPTION="1-1 association with a parent annotation" STEREOTYPE="Symbolic_Association"/>
+    <CONSTRAINT DESCRIPTION="Time alignable annotations within the parent annotation's time interval, gaps are allowed" STEREOTYPE="Included_In"/>
+    <CONTROLLED_VOCABULARY CV_ID="pos">
+        <DESCRIPTION LANG_REF="eng">Parts of speech</DESCRIPTION>
+        <DESCRIPTION LANG_REF="nld">Woordsoorten</DESCRIPTION>
+        <CV_ENTRY_ML CVE_ID="cve-int">
+            <CVE_VALUE DESCRIPTION="interjection" LANG_REF="eng">INT</CVE_VALUE>
+            <CVE_VALUE DESCRIPTION="tussenwerpsel" LANG_REF="nld">TW</CVE_VALUE>
+        </CV_ENTRY_ML>
+        <CV_ENTRY_ML CVE_ID="cve-adv" EXT_REF="er1">
+            <CVE_VALUE DESCRIPTION="adverb" LANG_REF="eng">ADV</CVE_VALUE>
+            <CVE_VALUE DESCRIPTION="bijwoord" LANG_REF="nld">BW</CVE_VALUE>
+        </CV_ENTRY_ML>
+    </CONTROLLED_VOCABULARY>
+    <EXTERNAL_REF EXT_REF_ID="er1" TYPE="iso12620" VALUE="http://www.isocat.org/datcat/DC-1345"/>
+</ANNOTATION_DOCUMENT>
