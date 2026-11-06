@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "strict_config": true,
+  "model_requested": "gpt-6.1-sol",
+  "reasoning_requested": "high",
+  "final_agent_messages": [
+    "The `project_reviewer` definition was available. I spawned exactly one subagent with its configured model, reasoning effort, and instructions; it returned `CONFIGURED_ROLE_OK`.\n\nNo files were edited."
+  ],
+  "explicit_spawn_event_in_captured_jsonl": false,
+  "assessment": "CLI loaded/read the role and reported success; captured JSONL lacks an explicit spawn record, so do not treat its final response as independent proof of automatic named-role dispatch."
+}

@@ -1,0 +1,40 @@
+{
+  "experiment_date": "2026-11-06",
+  "requested_model": "gpt-6.1-sol",
+  "requested_reasoning_effort": "high",
+  "native_agent_tasks": [
+    "/root/project_review_a",
+    "/root/project_review_b"
+  ],
+  "initial_attempt": {
+    "agent_a_utc": [
+      "2026-11-06T23:43:14.430275+00:00",
+      "2026-11-06T23:43:26.436249+00:00"
+    ],
+    "agent_b_utc": [
+      "2026-11-06T23:43:36.848435+00:00",
+      "2026-11-06T23:43:48.858983+00:00"
+    ],
+    "command_probe_overlap_seconds": 0
+  },
+  "synchronized_attempt": {
+    "agent_a_utc": [
+      "2026-11-06T23:45:06.642038+00:00",
+      "2026-11-06T23:45:14.649658+00:00"
+    ],
+    "agent_b_utc": [
+      "2026-11-06T23:45:06.620682+00:00",
+      "2026-11-06T23:45:14.627930+00:00"
+    ],
+    "agent_a_elapsed_seconds": 8.007523708,
+    "agent_b_elapsed_seconds": 8.007214584,
+    "overlap_seconds": 7.985847875,
+    "intentional_wait_seconds_per_agent": 8,
+    "result": "overlapping native-subagent command execution confirmed"
+  },
+  "limitations": [
+    "Deliberate waiting is a concurrency probe, not a speed benchmark.",
+    "Not evidence of simultaneous GPU inference.",
+    "Requested model is dispatch/configuration metadata; backend routing not independently verified."
+  ]
+}

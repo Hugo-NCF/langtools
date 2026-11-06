@@ -1,0 +1,15 @@
+{
+  "test": "custom_provider_loopback_transport",
+  "exit_code": 1,
+  "requests": [
+    {
+      "path": "/v1/responses",
+      "model": "transport-probe",
+      "stream": true,
+      "at_utc": "2026-11-06T23:45:44.340628+00:00"
+    }
+  ],
+  "inference_performed": false,
+  "expected_error": "LOCAL_TRANSPORT_PROBE_ONLY_NO_INFERENCE",
+  "assessment": "Custom-provider transport reached the loopback Responses endpoint; no model inference tested."
+}
