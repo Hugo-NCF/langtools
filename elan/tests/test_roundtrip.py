@@ -56,6 +56,7 @@ def test_writing_is_idempotent(name: str) -> None:
         "minimal.eaf",
         "old_cv_2_7.eaf",
         "nested_subdivision_4.eaf",
+        "format_2_8.eaf",
         *EXTERNAL_EXACT,
         "pympi_sample_2.7.eaf",
     ],

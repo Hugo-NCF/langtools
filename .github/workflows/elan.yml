@@ -53,6 +53,8 @@ jobs:
         run: uv run python tests/corpus/fetch.py
       - name: Tests
         run: uv run pytest -v
+      - name: Performance tests (spec 6.5)
+        run: uv run pytest -m perf -v -s
 
   package:
     name: package (${{ matrix.os }})

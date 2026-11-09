@@ -49,6 +49,8 @@ packages = ["elan_ng"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 qt_api = "pyside6"
+addopts = "-m 'not perf'"
+markers = ["perf: open/save timing tests; opt-in with -m perf (CI runs them in a separate step)"]
 
 [tool.importlinter]
 root_package = "elan_ng"
