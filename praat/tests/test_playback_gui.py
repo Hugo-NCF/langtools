@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QLineEdit
 
 from langtools_praat.gui.app import MainWindow
 from langtools_praat.io.textgrid import write
@@ -116,4 +118,66 @@ def test_missing_device_and_empty_selection_are_useful_errors(qtbot, wav):
     window.region.setRegion((0.5, 0.5))
     with pytest.raises(ValueError, match="nonempty"):
         window.play_selection()
+    window.close()
+
+
+@pytest.mark.parametrize(
+    "target_name, next_name, previous_name",
+    [
+        ("plot", "tiers", "channel"),
+        ("tiers", "table", "plot"),
+    ],
+)
+def test_plot_tab_playback_and_explicit_pane_navigation(
+    qtbot, wav, target_name, next_name, previous_name
+):
+    factory = Factory()
+    window = MainWindow(Transport(factory))
+    qtbot.addWidget(window)
+    window.open_path(wav)
+    window.show()
+    window.activateWindow()
+    target = getattr(window, target_name)
+    target.setFocus()
+    qtbot.waitUntil(target.hasFocus)
+    qtbot.keyClick(target, Qt.Key.Key_Tab)
+    qtbot.waitUntil(lambda: window._playback_id is not None)
+    assert target.hasFocus()
+    qtbot.keyClick(target, Qt.Key.Key_Tab)
+    qtbot.waitUntil(lambda: window._playback_id is None)
+    assert factory.sinks[-1].closed
+    qtbot.keyClick(target, Qt.Key.Key_F6)
+    qtbot.waitUntil(getattr(window, next_name).hasFocus)
+    assert window._playback_id is None
+    target.setFocus()
+    qtbot.waitUntil(target.hasFocus)
+    qtbot.keyClick(target, Qt.Key.Key_F6, modifier=Qt.KeyboardModifier.ShiftModifier)
+    qtbot.waitUntil(getattr(window, previous_name).hasFocus)
+    assert window._playback_id is None
+    window.close()
+
+
+def test_tab_in_native_label_editor_commits_and_navigates_without_playback(qtbot, wav, tmp_path):
+    path = tmp_path / "labels.TextGrid"
+    write(path, TextGrid.create("labels", 0, 1, (("words", "interval"),)))
+    factory = Factory()
+    window = MainWindow(Transport(factory))
+    qtbot.addWidget(window)
+    window.open_path(wav)
+    window.open_path(path)
+    window.show()
+    window.activateWindow()
+    window.table.setFocus()
+    index = window.table_model.index(0, 4)
+    window.table.setCurrentIndex(index)
+    window.table.edit(index)
+    editor = window.table.findChild(QLineEdit)
+    assert editor is not None
+    editor.setText("tab commit")
+    qtbot.keyClick(editor, Qt.Key.Key_Tab)
+    qtbot.waitUntil(lambda: window.session.document.tiers[0].intervals[0].label == "tab commit")
+    assert QApplication.focusWidget() is not editor
+    assert not factory.sinks
+    assert window._playback_id is None
+    window.session.mark_saved()
     window.close()

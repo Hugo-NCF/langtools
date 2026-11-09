@@ -7,8 +7,12 @@ This branch implements the injectable transport, bounded PortAudio playback, GUI
 ## Implemented workflow
 
 - Select a nonempty range on the waveform or click an interval on a tier. Play/Stop
-  uses that range; Tab toggles only when a plot has focus. The native annotation
-  table retains its text editing/navigation behavior.
+  uses that range; Tab toggles only when a plot or its children have focus.
+  From either plot, F6 moves to the next pane (waveform → tiers → table), and
+  Shift+F6 moves to the previous pane (tiers → waveform → channel selector).
+  These keys are shown in plot tooltips and accessibility descriptions. Native
+  annotation table editors retain their Tab commit/navigation behavior. Escape
+  still cancels tier drag previews.
 - An orange cursor tracks output position in both plots. Stop freezes that cursor
   without destroying the selected range or changing annotation content.
 - A single batched tier item draws visible intervals/points with clipped labels.
@@ -71,13 +75,26 @@ blocks with nonblocking queue reads; it does not read files, decode audio, call 
 or change annotations. Source data remains untouched. Playback uses the source
 sample rate and preserves all channels; unsupported device formats/rates surface
 as output errors instead of implicit resampling/downmixing.
+At the sink boundary only, rates within 1e-6 Hz of a positive integer are snapped
+to that integer to remove `1/dx` round-off, matching the WAV export tolerance.
+Genuine fractional rates and the source axis remain unchanged.
 
 The transport keeps a bounded mapping from output DAC timestamps to source-frame
 segments. `position()` evaluates the output stream clock against that map. Silence
 inserted while waiting for prefetch does not advance source time; EOF zero-padding
 does not extend the selected source range. A device-clock failure retains the last
-observed cursor position. Underflow/device status errors abort rather than claiming
-uninterrupted timing.
+observed cursor position. **Any nonempty PortAudio status is intentionally fatal**,
+including a single transient output underflow. The transport aborts and reports
+the status instead of continuing with an unverified timing estimate. This strict
+prototype policy differs from an empty prefetch queue: that path schedules known
+silence on a healthy stream and does not advance source time.
+
+An inactive stream can precede its finished callback during normal drain. If all
+selected frames were submitted and the device clock has reached the final source
+segment's scheduled DAC end, polling records successful completion even if that
+callback is delayed. Polling samples the clock again after detecting inactivity.
+Inactivity before that endpoint remains an unexpected-output error. Late finished
+callbacks cannot rewrite a terminal result.
 
 The GUI's 40 ms timer only samples this position; it never computes audio progress
 from timer ticks. Timing is labeled **device-clock-estimate**: host-reported DAC
@@ -102,7 +119,10 @@ has not been benchmarked. Display clipping never truncates stored labels.
 
 New registry command: `annotation.move_point(tier_id, point_id, time)`. It retains
 stable IDs, sorts by time, rejects duplicate times and enforces the tier domain.
-Existing `annotation.move_boundary` handles interval drags unchanged. No automatic
+Both it and `annotation.move_boundary` require nonempty string IDs and a finite
+`numbers.Real` time, rejecting booleans, strings, complex values and undefined
+times with `InvalidInput` before execution. Failed validation preserves document
+identity/revision and undo/redo history. No automatic
 snapping, grouped multi-tier drag, merge/delete, tier management/search or complete
 original keyboard/focus parity is claimed.
 
@@ -110,15 +130,26 @@ For the analysis contributor: `gui/app.py` now contains `self.tiers`, the linked
 waveform `self.plot`, `self.cursor`/`self.tier_cursor`, and `self.transport`.
 Selection remains `self.region`; playback cursor updates do not mutate it.
 Coordinate any further shared GUI changes through the discussion/PRs before
-integration. No analysis types/settings have been added here.
+integration. The rebased branch retains the merged analysis contracts and their
+full `INTERFACES.md` section, alongside playback and `annotation.move_point`.
+This PR does not modify the analysis implementation.
 
 ## Validation
 
-79 local tests pass on macOS/arm64 with Python 3.12, including deterministic clock
+After rebasing onto `main` (`5754da0`), **430 local tests pass** on macOS/arm64
+with Python 3.12 (2026-11-09), including the merged analysis contract tests. Coverage
+includes deterministic clock
 and latency behavior, selected stereo samples, bounded reads, errors, old callbacks,
 source revisions, device cleanup, GUI lifecycle, actual mouse drag, Unicode/table
 synchronization, dense-tier rendering, revision rejection, Escape and undo. Ruff
 lint/format pass; offscreen editor screenshot is in `screenshots/playback-and-tiers.png`.
+
+Review regressions cover inactive-before-finished callback ordering (full and
+padded final buffers), completion during a poll, early device loss, reciprocal
+sample-rate rounding, malformed movement parameters and unchanged undo/redo
+history, Tab playback and F6 traversal in both plots, and native label-editor Tab.
+The full offscreen suite ran outside the local sandbox because Qt's processor
+feature detection fails inside it. No audio hardware was used.
 
 The sounddevice wrapper is exercised using a simulated OutputStream. Real speakers,
 device loss, acoustic loopback latency and pinned Praat playback/editor comparisons

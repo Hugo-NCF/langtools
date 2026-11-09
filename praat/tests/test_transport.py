@@ -49,7 +49,7 @@ def test_selected_samples_channel_layout_and_nonzero_source_clock():
     sink = factory.sinks[-1]
     output = sink.pump(500)
     np.testing.assert_array_equal(output, source.values[:, 500:1000].T.astype(np.float32))
-    assert transport.position(session).source_time == 3.75
+    assert transport.position(session).source_time == pytest.approx(3.75)
     sink.advance(0.2)  # 100 ms hardware latency, then 100 ms of actual audio
     assert transport.position(session).source_time == pytest.approx(3.85)
     assert transport.position(session).source_revision == 7
@@ -75,6 +75,73 @@ def test_stop_freezes_audible_position_not_submitted_or_prefetched_frames():
     sink.advance(10)
     assert transport.position(session) == stopped
     assert sink.closed
+
+
+@pytest.mark.parametrize("frames, buffer_size", [(500, 500), (7, 16)])
+def test_inactive_after_drain_before_finished_callback_is_success(frames, buffer_size):
+    factory, source = Factory(), Source(frames=frames, origin=0)
+    transport = Transport(factory)
+    session = transport.play(source, 0, frames / 1000)
+    ready(transport)
+    sink = factory.sinks[-1]
+    sink.pump(buffer_size)
+    assert transport.position(session).state == "draining"
+    # PortAudio may become inactive before delivering its finished callback.
+    sink.now = sink.drain_at
+    sink.running = False
+    position = transport.position(session)
+    assert position.state == "finished"
+    assert position.error is None
+    assert position.source_time == pytest.approx(frames / 1000)
+    assert sink.closed
+    sink.finished()  # Late notification cannot change this terminal result.
+    assert transport.position(session) == position
+
+
+def test_inactive_before_final_audio_was_played_is_still_an_error():
+    factory, source = Factory(), Source(frames=500, origin=0)
+    transport = Transport(factory)
+    session = transport.play(source, 0, 0.5)
+    ready(transport)
+    sink = factory.sinks[-1]
+    sink.pump(500)
+    sink.now = 0.2  # Only 0.1 s of selected audio could have reached the DAC.
+    sink.running = False
+    position = transport.position(session)
+    assert position.state == "error"
+    assert "unexpectedly" in position.error
+    assert position.source_time == pytest.approx(0.1)
+    assert sink.closed
+
+
+def test_drain_completes_between_clock_sample_and_active_check():
+    factory, source = Factory(), Source(frames=500, origin=0)
+    transport = Transport(factory)
+    session = transport.play(source, 0, 0.5)
+    ready(transport)
+    sink = factory.sinks[-1]
+    sink.pump(500)
+
+    def deactivate_during_poll():
+        sink.now = sink.drain_at
+        sink.running = False
+        return False
+
+    sink.active = deactivate_during_poll
+    position = transport.position(session)
+    assert position.state == "finished"
+    assert position.error is None
+    assert position.source_time == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("rate, expected", [(44100.0000001, 44100.0), (44100.25, 44100.25)])
+def test_only_near_integer_sample_rates_are_normalized_at_sink_boundary(rate, expected):
+    factory, source = Factory(), Source()
+    source.axis = SampledAxis.recording(2000, rate)
+    transport = Transport(factory)
+    transport.play(source, 0, source.axis.xmax)
+    assert factory.sinks[-1].rate == pytest.approx(expected, abs=1e-9, rel=0)
+    transport.close()
 
 
 def test_old_finished_callback_and_session_ids_cannot_change_new_playback():

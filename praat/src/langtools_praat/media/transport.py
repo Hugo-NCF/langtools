@@ -113,8 +113,14 @@ class Transport:
 
             factory = PortAudioSink
         try:
+            rate = source.axis.sample_rate
+            # Remove reciprocal round-off at the device boundary, not from the
+            # source axis. Genuine fractional rates retain their original value.
+            nearest = round(rate)
+            if nearest > 0 and abs(rate - nearest) <= 1e-6:
+                rate = float(nearest)
             session.sink = factory(
-                source.axis.sample_rate,
+                rate,
                 source.channels,
                 lambda output, dac, status: self._render(session, output, dac, status),
                 lambda: self._finished(session),
@@ -235,8 +241,26 @@ class Transport:
                 if session.state == "finished":
                     frame = session.last
                 elif not session.sink.active() and session.state != "error":
-                    session.error = "Audio output stopped unexpectedly; check the output device."
-                    session.state = "error"
+                    # Inactivity can precede the finished callback. Re-read the
+                    # clock after active(): the first clock sample may predate
+                    # completion. Early device loss must still be an error.
+                    now = session.sink.clock()
+                    if session.state == "finished" or (
+                        session.state == "draining"
+                        and session.submitted == session.last
+                        and session.timeline
+                        and now
+                        >= session.timeline[-1][0]
+                        + session.timeline[-1][2] * session.axis.dx
+                        - 1e-9 * session.axis.dx
+                    ):
+                        session.state = "finished"
+                        frame = session.last
+                    else:
+                        session.error = (
+                            "Audio output stopped unexpectedly; check the output device."
+                        )
+                        session.state = "error"
             except Exception as error:
                 frame = session.observed_frame
                 session.error = f"Audio device unavailable: {error}"

@@ -144,11 +144,24 @@ class MainWindow(QMainWindow):
         self._play_timer.setInterval(40)
         self._play_timer.timeout.connect(self.poll_playback)
         self._play_shortcuts = []
-        for target in (self.plot, self.tiers):
+        for target, previous_pane, next_pane in (
+            (self.plot, self.channel, self.tiers),
+            (self.tiers, self.plot, self.table),
+        ):
             shortcut = QShortcut(QKeySequence("Tab"), target)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(lambda: self.guard(self.toggle_playback))
             self._play_shortcuts.append(shortcut)
+            # Tab is reserved for playback in plots, so expose pane traversal
+            # without interfering with native table/editor navigation or Escape.
+            for key, pane in (("F6", next_pane), ("Shift+F6", previous_pane)):
+                navigation = QShortcut(QKeySequence(key), target)
+                navigation.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+                navigation.activated.connect(lambda pane=pane: pane.setFocus())
+                self._play_shortcuts.append(navigation)
+            hint = "Tab: play/stop. F6: next pane. Shift+F6: previous pane."
+            target.setToolTip(hint)
+            target.setAccessibleDescription(hint)
         self.statusBar().showMessage("Prototype: waveform and annotation workflow")
         self.refresh_objects()
 

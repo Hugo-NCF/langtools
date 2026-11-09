@@ -50,6 +50,10 @@ these modules directly; do not introduce parallel Sound or TextGrid definitions.
 | `annotation.move_boundary` | `tier_id`, `right_interval_id`, `time` |
 | `annotation.move_point` | `tier_id`, `point_id`, `time` |
 
+Both movement commands validate nonempty string IDs and finite real times at
+construction (booleans and numeric strings are rejected with `InvalidInput`).
+Invalid parameters do not alter the document, revision or undo/redo history.
+
 `text_offset` counts Python Unicode code points, not Qt UTF-16 offsets or grapheme
 clusters. Only collapsed-caret splitting is implemented. Selected-text/range
 splitting, boundary removal (D03), multi-tier drag and complete registry parameter
@@ -116,6 +120,8 @@ numerically from `FormantSettings.preemphasis_from` before LPC. Arrays are read-
   and edits annotations through the same registry. See
   [PLAYBACK_AND_TIERS.md](PLAYBACK_AND_TIERS.md) for integration contracts and limits;
   the cursor is device-clock-derived, not advanced by GUI timer ticks.
+- Tab toggles playback in plots and their children; F6/Shift+F6 move to the next/previous pane.
+  Native annotation table editors retain their Tab commit/navigation behavior.
 
 These Python spellings implement a subset of §16's language-neutral examples;
 they are not APIs of original Praat. Preserve compatibility with these consumers

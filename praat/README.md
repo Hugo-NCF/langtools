@@ -18,8 +18,9 @@ to edit its labels in the table; choose an audio object and then the TextGrid to
 both. Audio and annotations keep their own time domains. Drag the shaded waveform
 selection or select a table row. Insert a boundary/point, edit labels, undo/redo, and
 save a text TextGrid. Use **Play selection** / **Stop playback** to audition the
-selected range. Tab toggles playback while a waveform or tier plot has focus;
-native label editors keep their own text-navigation keys. Playback preserves all
+selected range. Tab toggles playback while a waveform/tier plot or its children have focus;
+F6 moves to the next pane and Shift+F6 to the previous pane from either plot.
+Native label editors keep their own Tab text-navigation behavior. Playback preserves all
 source channels; the channel dropdown changes the waveform display only.
 
 The graphical tiers share the waveform's time axis. Click an interval/point to
