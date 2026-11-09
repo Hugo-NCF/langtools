@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Local reference and generated data
+captures/
+generated/
+candidate/
+comparison.json
+local_reference_pin.json
