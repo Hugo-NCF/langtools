@@ -36,6 +36,6 @@
   },
   "elapsed_seconds": 8.007523708,
   "intentional_sleep_seconds": 8,
-  "barrier_path": "/Volumes/SanDisk/Proyectos/ai-agents/langtools/praat/subagent-evidence/parallel-go.json",
+  "barrier_path": "praat/subagent-evidence/parallel-go.json",
   "model_provenance": "Requested model is tool dispatch metadata, not introspection of server routing."
 }
