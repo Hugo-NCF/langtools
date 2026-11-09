@@ -23,7 +23,7 @@ Validation on 2026-11-04: 56 local tests passed, lint/format passed, and a built
 
 - Pin and capture the reference executable; resolve D03 and other runtime discrepancies.
 - Acoustic analysis: Gaussian spectrogram, filtered-AC pitch, Burg formants and intensity. Agree result/settings types before implementation.
-- Advanced annotation gestures, search and playback timing; build on the shared command layer.
+- Playback and graphical single-mark tier editing: @jaas29, [PR #16](https://github.com/mhulden/langtools/pull/16), [issue #15](https://github.com/mhulden/langtools/issues/15). See [contracts and validation](PLAYBACK_AND_TIERS.md); check the PR before overlapping `media/` or `gui/` work. Advanced gestures/search and measured device timing remain follow-ups.
 - Project recovery, packaged distributions and accessibility/manual platform checks.
 
 Claim a small issue with acceptance criteria, name the modules/interfaces affected, and open a linked draft PR early. Other students should branch from upstream main after this foundation merges, or explicitly coordinate a dependency on this branch. Do not copy modules between forks or create a second TextGrid serializer.

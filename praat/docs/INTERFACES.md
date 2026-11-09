@@ -48,6 +48,11 @@ these modules directly; do not introduce parallel Sound or TextGrid definitions.
 | `annotation.split_interval` | `tier_id`, `time`, `text_offset=0` |
 | `annotation.insert_point` | `tier_id`, `time`, `label=""` |
 | `annotation.move_boundary` | `tier_id`, `right_interval_id`, `time` |
+| `annotation.move_point` | `tier_id`, `point_id`, `time` |
+
+Both movement commands validate nonempty string IDs and finite real times at
+construction (booleans and numeric strings are rejected with `InvalidInput`).
+Invalid parameters do not alter the document, revision or undo/redo history.
 
 `text_offset` counts Python Unicode code points, not Qt UTF-16 offsets or grapheme
 clusters. Only collapsed-caret splitting is implemented. Selected-text/range
@@ -103,14 +108,20 @@ numerically from `FormantSettings.preemphasis_from` before LPC. Arrays are read-
 
 - The optional `gui` package alone imports Qt/PyQtGraph. Headless imports work
   without the GUI extra or a display/device.
-- The initial editor is a waveform plus a native editable annotation table, not
-  the complete tier canvas or independent-editor lifecycle in the master plan.
+- The editor combines a waveform, graphical single-mark tier editing and a native
+  editable annotation table. Full tier gestures and independent-editor lifecycle
+  remain follow-ups.
 - Worker waveform results carry a generation token; viewport/source changes
   cancel and invalidate previous requests immediately.
 - Add analysis as independent pure functions behind a service that accepts an
-  immutable source revision and explicit settings, using the contract below.
-- No playback implementation exists yet. Use an injectable transport with a
-  deterministic fake; do not use a GUI timer as the source clock.
+  immutable source revision and explicit settings, using the analysis contracts above.
+- `media.transport.Transport` provides selected playback via an injectable sink,
+  a deterministic fake and lazy sounddevice output. `gui.tiers.TierCanvas` renders
+  and edits annotations through the same registry. See
+  [PLAYBACK_AND_TIERS.md](PLAYBACK_AND_TIERS.md) for integration contracts and limits;
+  the cursor is device-clock-derived, not advanced by GUI timer ticks.
+- Tab toggles playback in plots and their children; F6/Shift+F6 move to the next/previous pane.
+  Native annotation table editors retain their Tab commit/navigation behavior.
 
 These Python spellings implement a subset of §16's language-neutral examples;
 they are not APIs of original Praat. Preserve compatibility with these consumers

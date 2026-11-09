@@ -82,6 +82,7 @@ def test_headless_imports_do_not_initialize_qt_or_devices():
 import sys
 from langtools_praat.cli import main
 from langtools_praat.application.workspace import Workspace
+from langtools_praat.media.transport import Transport
 assert not any(n.startswith(('PySide6', 'pyqtgraph', 'sounddevice')) for n in sys.modules)
 """
     result = subprocess.run(

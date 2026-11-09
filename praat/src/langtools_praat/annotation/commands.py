@@ -1,4 +1,6 @@
+import math
 from dataclasses import dataclass, replace
+from numbers import Real
 from typing import Protocol
 
 from ..errors import InvalidInput
@@ -18,6 +20,20 @@ def find_tier(grid: TextGrid, tier_id: str) -> Tier:
         if tier.id == tier_id:
             return tier
     raise InvalidInput("Tier no longer exists.")
+
+
+def _move_time(tier_id: str, entity_id: str, time: float) -> float:
+    if not all(isinstance(value, str) and value for value in (tier_id, entity_id)):
+        raise InvalidInput("Movement needs nonempty string tier and entity IDs.")
+    if isinstance(time, bool) or not isinstance(time, Real):
+        raise InvalidInput("Movement time must be a finite real number.")
+    try:
+        value = float(time)
+    except OverflowError as error:
+        raise InvalidInput("Movement time must be finite.") from error
+    if not math.isfinite(value):
+        raise InvalidInput("Movement time must be finite.")
+    return value
 
 
 @dataclass(frozen=True)
@@ -91,6 +107,11 @@ class MoveBoundary:
     right_interval_id: str
     time: float
 
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "time", _move_time(self.tier_id, self.right_interval_id, self.time)
+        )
+
     def apply(self, grid: TextGrid) -> TextGrid:
         tier = find_tier(grid, self.tier_id)
         if not isinstance(tier, IntervalTier):
@@ -107,3 +128,32 @@ class MoveBoundary:
                 )
                 return replace_tier(grid, tier.id, replace(tier, intervals=intervals))
         raise InvalidInput("Choose an internal boundary.")
+
+
+@dataclass(frozen=True)
+class MovePoint:
+    tier_id: str
+    point_id: str
+    time: float
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "time", _move_time(self.tier_id, self.point_id, self.time))
+
+    def apply(self, grid: TextGrid) -> TextGrid:
+        tier = find_tier(grid, self.tier_id)
+        if not isinstance(tier, PointTier):
+            raise InvalidInput("Point movement needs a point tier.")
+        if not tier.xmin <= self.time <= tier.xmax:
+            raise InvalidInput("Point must remain inside its tier domain.")
+        if not any(point.id == self.point_id for point in tier.points):
+            raise InvalidInput("Point no longer exists.")
+        points = tuple(
+            sorted(
+                (
+                    replace(point, time=self.time) if point.id == self.point_id else point
+                    for point in tier.points
+                ),
+                key=lambda point: point.time,
+            )
+        )
+        return replace_tier(grid, tier.id, replace(tier, points=points))

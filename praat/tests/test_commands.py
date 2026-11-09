@@ -1,6 +1,12 @@
 import pytest
 
-from langtools_praat.annotation.commands import InsertPoint, MoveBoundary, SetLabel, SplitInterval
+from langtools_praat.annotation.commands import (
+    InsertPoint,
+    MoveBoundary,
+    MovePoint,
+    SetLabel,
+    SplitInterval,
+)
 from langtools_praat.annotation.session import AnnotationSession
 from langtools_praat.application.workspace import Workspace
 from langtools_praat.errors import InvalidInput, StaleRevision
@@ -127,3 +133,74 @@ def test_external_disk_change_does_not_overwrite_or_clear_dirty(tmp_path):
     assert target.dirty
     workspace.save(object_id, tmp_path / "recovered.TextGrid")
     assert not target.dirty
+
+
+@pytest.mark.parametrize("kind", ["move_point", "move_boundary"])
+@pytest.mark.parametrize(
+    "field, bad",
+    [
+        ("time", "4.5"),
+        ("time", None),
+        ("time", True),
+        ("time", False),
+        ("time", float("nan")),
+        ("time", float("inf")),
+        ("time", -float("inf")),
+        ("time", 4 + 0j),
+        ("tier_id", None),
+        ("tier_id", 1),
+        ("tier_id", ""),
+        ("entity_id", None),
+        ("entity_id", []),
+        ("entity_id", ""),
+    ],
+)
+def test_registry_rejects_malformed_move_parameters_without_changing_history(kind, field, bad):
+    target = session()
+    interval_id, point_tier_id = (t.id for t in target.document.tiers)
+    target.apply(SplitInterval(interval_id, 4), expected_revision=0)
+    target.apply(InsertPoint(point_tier_id, 4), expected_revision=1)
+    # Leave a redo entry as well as existing undo history to check rejection atomicity.
+    right = target.document.tiers[0].intervals[1]
+    target.apply(SetLabel(interval_id, right.id, "pending redo"), expected_revision=2)
+    target.undo()
+    original = target.document
+    entity_field = "point_id" if kind == "move_point" else "right_interval_id"
+    parameters = {
+        "tier_id": point_tier_id if kind == "move_point" else interval_id,
+        entity_field: target.document.tiers[1].points[0].id if kind == "move_point" else right.id,
+        "time": 4.25,
+    }
+    parameters[entity_field if field == "entity_id" else field] = bad
+    workspace = Workspace()
+    workspace.objects[original.id] = target
+    with pytest.raises(InvalidInput):
+        workspace.execute(
+            original.id, f"annotation.{kind}", expected_revision=original.revision, **parameters
+        )
+    assert target.document is original
+    assert target.can_undo and target.can_redo
+    with pytest.raises(InvalidInput):
+        (MovePoint if kind == "move_point" else MoveBoundary)(**parameters)
+    assert target.redo().tiers[0].intervals[1].label == "pending redo"
+
+
+@pytest.mark.parametrize("kind", ["move_point", "move_boundary"])
+@pytest.mark.parametrize("time", [4, 4.25])
+def test_move_commands_accept_real_times(kind, time):
+    target = session()
+    interval_id, point_tier_id = (t.id for t in target.document.tiers)
+    target.apply(SplitInterval(interval_id, 3.5), expected_revision=0)
+    target.apply(InsertPoint(point_tier_id, 3.75), expected_revision=1)
+    command = (
+        MovePoint(point_tier_id, target.document.tiers[1].points[0].id, time)
+        if kind == "move_point"
+        else MoveBoundary(interval_id, target.document.tiers[0].intervals[1].id, time)
+    )
+    target.apply(command, expected_revision=2)
+    observed = (
+        target.document.tiers[1].points[0].time
+        if kind == "move_point"
+        else target.document.tiers[0].intervals[1].xmin
+    )
+    assert observed == time

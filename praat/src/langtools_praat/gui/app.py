@@ -7,7 +7,7 @@ from threading import Event
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -30,9 +30,11 @@ from ..annotation.session import AnnotationSession
 from ..application.workspace import Workspace
 from ..errors import Cancelled, InvalidInput
 from ..io.audio import AudioFile
+from ..media.transport import Transport
 from ..media.waveform import summarize
 from ..model.textgrid import IntervalTier, TextGrid
 from .table import AnnotationTable
+from .tiers import TierCanvas
 
 
 class WaveSignals(QObject):
@@ -59,9 +61,11 @@ class WaveJob(QRunnable):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, transport=None):
         super().__init__()
         self.workspace = Workspace()
+        self.transport = transport if transport is not None else Transport()
+        self._playback_id = None
         self.source: AudioFile | None = None
         self.session: AnnotationSession | None = None
         self._token = 0
@@ -76,26 +80,43 @@ class MainWindow(QMainWindow):
         self.details.setWordWrap(True)
         self.channel = QComboBox()
         self.channel.setAccessibleName("Waveform channel")
+        self.channel.setToolTip("Waveform display channel; playback preserves all source channels.")
         self.channel.currentIndexChanged.connect(lambda *_: self.queue_waveform())
         self.plot = pg.PlotWidget(background="w")
         self.plot.setAccessibleName("Waveform and time selection")
         self.plot.setLabel("bottom", "Time", units="s")
         self.plot.setLabel("left", "Amplitude")
+        self.plot.getAxis("left").setWidth(110)
         self.plot.disableAutoRange()
         self.plot.setYRange(-1, 1)
         self.curve = self.plot.plot(pen=pg.mkPen("#245b7a", width=1))
         self.region = pg.LinearRegionItem((0, 1), brush=(50, 120, 180, 35))
         self.region.setZValue(10)
         self.plot.addItem(self.region)
+        self.cursor = pg.InfiniteLine(pos=0, movable=False, pen=pg.mkPen("#b65610", width=2))
+        self.cursor.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.plot.addItem(self.cursor)
         self.region.sigRegionChanged.connect(self.selection_changed)
         self.table_model = AnnotationTable(self.workspace, self)
-        self.table_model.content_changed.connect(self.refresh_objects)
+        self.table_model.content_changed.connect(lambda: self.annotation_changed(reset_table=False))
         self.table = QTableView()
         self.table.setAccessibleName("Annotation intervals and points; labels are editable")
         self.table.setModel(self.table_model)
+        self.table.selectionModel().currentRowChanged.connect(
+            lambda current, previous: self.select_annotation(current.row())
+        )
         self.table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.table.clicked.connect(lambda index: self.select_annotation(index.row()))
+        self.tiers = TierCanvas(self.workspace)
+        self.tiers.getAxis("left").setWidth(110)
+        self.tiers.setXLink(self.plot)
+        self.tiers.selected_entity.connect(self.select_graphical_entity)
+        self.tiers.edited.connect(self.annotation_changed)
+        self.tiers.failed.connect(lambda message: self.statusBar().showMessage(message))
+        self.tier_cursor = pg.InfiniteLine(pos=0, movable=False, pen=pg.mkPen("#b65610", width=2))
+        self.tier_cursor.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.tiers.addItem(self.tier_cursor)
         self.selection_label = QLabel("Selection: 0–1 s")
         right = QWidget()
         layout = QVBoxLayout(right)
@@ -103,8 +124,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.channel)
         panes = QSplitter(Qt.Orientation.Vertical)
         panes.addWidget(self.plot)
+        panes.addWidget(self.tiers)
         panes.addWidget(self.table)
-        panes.setSizes([320, 240])
+        panes.setSizes([260, 180, 180])
         layout.addWidget(panes)
         layout.addWidget(self.selection_label)
         splitter = QSplitter()
@@ -118,6 +140,28 @@ class MainWindow(QMainWindow):
         self._wave_timer.timeout.connect(self.request_waveform)
         self.plot.getViewBox().sigXRangeChanged.connect(lambda *_: self.queue_waveform())
         self._make_actions()
+        self._play_timer = QTimer(self)
+        self._play_timer.setInterval(40)
+        self._play_timer.timeout.connect(self.poll_playback)
+        self._play_shortcuts = []
+        for target, previous_pane, next_pane in (
+            (self.plot, self.channel, self.tiers),
+            (self.tiers, self.plot, self.table),
+        ):
+            shortcut = QShortcut(QKeySequence("Tab"), target)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda: self.guard(self.toggle_playback))
+            self._play_shortcuts.append(shortcut)
+            # Tab is reserved for playback in plots, so expose pane traversal
+            # without interfering with native table/editor navigation or Escape.
+            for key, pane in (("F6", next_pane), ("Shift+F6", previous_pane)):
+                navigation = QShortcut(QKeySequence(key), target)
+                navigation.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+                navigation.activated.connect(lambda pane=pane: pane.setFocus())
+                self._play_shortcuts.append(navigation)
+            hint = "Tab: play/stop. F6: next pane. Shift+F6: previous pane."
+            target.setToolTip(hint)
+            target.setAccessibleDescription(hint)
         self.statusBar().showMessage("Prototype: waveform and annotation workflow")
         self.refresh_objects()
 
@@ -127,6 +171,7 @@ class MainWindow(QMainWindow):
         file_menu = self.menuBar().addMenu("&File")
         edit_menu = self.menuBar().addMenu("&Edit")
         annotation_menu = self.menuBar().addMenu("&Annotation")
+        audio_menu = self.menuBar().addMenu("&Audio")
 
         def action(menu, text, callback, shortcut=None, tool=False):
             item = QAction(text, self)
@@ -143,6 +188,8 @@ class MainWindow(QMainWindow):
         action(file_menu, "Save TextGrid…", self.save_selected, QKeySequence.StandardKey.Save, True)
         action(file_menu, "Fit recording / annotation", self.fit_view, "Ctrl+0")
         action(file_menu, "Close", self.close, QKeySequence.StandardKey.Close)
+        self.play_action = action(audio_menu, "Play selection", self.play_selection, tool=True)
+        self.stop_action = action(audio_menu, "Stop playback", self.stop_playback, tool=True)
         action(edit_menu, "Rename object…", self.rename_object)
         action(edit_menu, "Copy object", self.copy_object)
         action(edit_menu, "Remove object", self.remove_object)
@@ -184,6 +231,8 @@ class MainWindow(QMainWindow):
         self.objects.blockSignals(False)
         self.undo_action.setEnabled(bool(self.session and self.session.can_undo))
         self.redo_action.setEnabled(bool(self.session and self.session.can_redo))
+        self.play_action.setEnabled(self.source is not None)
+        self.stop_action.setEnabled(self._playback_id is not None)
 
     def choose_open(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -206,6 +255,8 @@ class MainWindow(QMainWindow):
             return
         value = self.workspace.get(self.selected_id())
         if isinstance(value, AudioFile):
+            if self.source is None or self.source.id != value.id:
+                self.stop_playback()
             self.source = value
             self.channel.blockSignals(True)
             self.channel.clear()
@@ -214,6 +265,7 @@ class MainWindow(QMainWindow):
         else:
             self.session = value
             self.table_model.set_session(value)
+            self.tiers.set_session(value)
         self.update_details()
         self.fit_view()
         self.refresh_objects()
@@ -294,12 +346,86 @@ class MainWindow(QMainWindow):
         if not 0 <= row < len(self.table_model.rows):
             return
         tier, item = self.table_model.rows[row]
+        self.tiers.select_entity(tier.id, item.id if item else None)
         if item is None:
             return
         if isinstance(tier, IntervalTier):
             self.region.setRegion((item.xmin, item.xmax))
         else:
             self.region.setRegion((item.time, item.time))
+
+    def select_graphical_entity(self, tier_id, entity_id):
+        for row, (tier, entity) in enumerate(self.table_model.rows):
+            if tier.id == tier_id and (entity.id if entity else None) == entity_id:
+                index = self.table_model.index(row, 4)
+                self.table.setCurrentIndex(index)
+                self.table.scrollTo(index)
+                self.select_annotation(row)
+                return
+
+    def annotation_changed(self, *, reset_table=True):
+        if reset_table:
+            self.table_model.set_session(self.session)
+        self.tiers.set_session(self.session)
+        self.refresh_objects()
+
+    def play_selection(self):
+        if self.source is None:
+            raise InvalidInput("Open and select an audio recording before playback.")
+        self.stop_playback()
+        start, end = self.region.getRegion()
+        self._playback_id = self.transport.play(self.source, start, end)
+        self._play_timer.start()
+        self.statusBar().showMessage("Starting audio output…")
+        self.refresh_objects()
+
+    def toggle_playback(self):
+        if self._playback_id:
+            self.stop_playback()
+        else:
+            self.play_selection()
+
+    def show_playback_position(self, position):
+        if (
+            position.session_id != self._playback_id
+            or self.source is None
+            or position.source_id != self.source.id
+            or position.source_revision != self.source.revision
+        ):
+            return
+        self.cursor.setValue(position.source_time)
+        self.tier_cursor.setValue(position.source_time)
+        self.statusBar().showMessage(
+            position.error
+            or f"Playback {position.state}: {position.source_time:.6f} s "
+            f"({position.timing_quality})"
+        )
+
+    def poll_playback(self):
+        if self._playback_id is None:
+            return
+        try:
+            position = self.transport.position(self._playback_id)
+            self.show_playback_position(position)
+            if position.state in ("finished", "stopped", "error"):
+                self._play_timer.stop()
+                self._playback_id = None
+                self.refresh_objects()
+        except InvalidInput as error:
+            self._play_timer.stop()
+            self._playback_id = None
+            self.statusBar().showMessage(str(error))
+            self.refresh_objects()
+
+    def stop_playback(self):
+        if self._playback_id is not None:
+            position = self.transport.stop(self._playback_id)
+            self.show_playback_position(position)
+            self._playback_id = None
+        if hasattr(self, "_play_timer"):
+            self._play_timer.stop()
+        if hasattr(self, "stop_action"):
+            self.stop_action.setEnabled(False)
 
     def new_grid(self):
         if self.source:
@@ -369,6 +495,7 @@ class MainWindow(QMainWindow):
             **parameters,
         )
         self.table_model.set_session(self.session)
+        self.tiers.set_session(self.session)
         self.refresh_objects()
 
     def insert_mark(self):
@@ -431,12 +558,14 @@ class MainWindow(QMainWindow):
         if self.session:
             self.session.undo()
             self.table_model.set_session(self.session)
+            self.tiers.set_session(self.session)
             self.refresh_objects()
 
     def redo(self):
         if self.session:
             self.session.redo()
             self.table_model.set_session(self.session)
+            self.tiers.set_session(self.session)
             self.refresh_objects()
 
     def rename_object(self):
@@ -478,11 +607,13 @@ class MainWindow(QMainWindow):
             return
         self.workspace.remove(object_id)
         if self.source and self.source.id == object_id:
+            self.stop_playback()
             self.source = None
             self.channel.clear()
         if self.session and self.session.document.id == object_id:
             self.session = None
             self.table_model.set_session(None)
+            self.tiers.set_session(None)
         self.refresh_objects()
         self.update_details()
         self.queue_waveform()
@@ -493,11 +624,13 @@ class MainWindow(QMainWindow):
                 if not self.confirm_saved(value):
                     event.ignore()
                     return
-        except OSError as error:
+        except (InvalidInput, OSError) as error:
             QMessageBox.warning(self, "Could not save", str(error))
             event.ignore()
             return
         self._wave_timer.stop()
+        self.stop_playback()
+        self.transport.close()
         self._cancel.set()
         self._token += 1
         event.accept()

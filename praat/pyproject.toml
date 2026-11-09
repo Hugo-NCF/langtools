@@ -7,7 +7,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = ["numpy>=2.2,<3", "soundfile>=0.13,<0.14"]
 
 [project.optional-dependencies]
-gui = ["PySide6-Essentials>=6.8,<6.9", "pyqtgraph>=0.13.7,<0.14"]
+gui = ["PySide6-Essentials>=6.8,<6.9", "pyqtgraph>=0.13.7,<0.14", "sounddevice>=0.5.3,<0.6"]
 
 [project.scripts]
 langtools-praat = "langtools_praat.cli:main"
