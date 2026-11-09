@@ -8,6 +8,8 @@
 | `edge_cases.eaf` | Written for this project: every stereotype, nested subdivision with unaligned slots, multilingual CV, external CV, lexicon ref, ref links, licenses, unknown elements and attributes, comments, empty and multi-line values, non-BMP and RTL text | Same as this repository |
 | `old_cv_2_7.eaf` | Written for this project in the EAF 2.7 form (monolingual CVs) | Same as this repository |
 | `problems.eaf` | Written for this project: overlaps, a zero-length annotation, decreasing time order, an unused slot, two associations for one parent, a dangling reference, an unknown tier type | Same as this repository |
+| `nested_subdivision_4.eaf` | Hand-made for elan-ng tests, same license as the repo | Same as this repository |
+| `format_2_8.eaf` | Hand-made for elan-ng tests, same license as the repo | Same as this repository |
 
 ## Downloaded files (`tests/corpus/external/`, not committed; run `fetch.py`)
 

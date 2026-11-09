@@ -10,7 +10,16 @@ from elan_ng.io.eaf_reader import read_eaf
 from support import DATA, external
 
 
-@pytest.mark.parametrize("name", ["minimal.eaf", "edge_cases.eaf", "old_cv_2_7.eaf"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "minimal.eaf",
+        "edge_cases.eaf",
+        "old_cv_2_7.eaf",
+        "nested_subdivision_4.eaf",
+        "format_2_8.eaf",
+    ],
+)
 def test_clean_files_have_no_problems(name: str) -> None:
     assert validate(read_eaf(DATA / name)) == []
 

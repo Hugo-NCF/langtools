@@ -15,7 +15,7 @@ from support import DATA, external
 
 # Files whose round trip must be semantically exact. 2.7 files are checked separately,
 # because converting their controlled vocabularies to the 3.0 form is a real change.
-EXACT = ["minimal.eaf", "edge_cases.eaf"]
+EXACT = ["minimal.eaf", "edge_cases.eaf", "nested_subdivision_4.eaf", "format_2_8.eaf"]
 EXTERNAL_EXACT = ["pympi_sample_2.8.eaf", "pympi_sample_3.0.eaf"]
 CV_ELEMENTS = frozenset({"CONTROLLED_VOCABULARY", "LANGUAGE"})
 
@@ -51,7 +51,15 @@ def test_writing_is_idempotent(name: str) -> None:
 
 # edge_cases.eaf is left out: it contains made-up elements on purpose, which we keep.
 @pytest.mark.parametrize(
-    "name", ["minimal.eaf", "old_cv_2_7.eaf", *EXTERNAL_EXACT, "pympi_sample_2.7.eaf"]
+    "name",
+    [
+        "minimal.eaf",
+        "old_cv_2_7.eaf",
+        "nested_subdivision_4.eaf",
+        "format_2_8.eaf",
+        *EXTERNAL_EXACT,
+        "pympi_sample_2.7.eaf",
+    ],
 )
 def test_output_is_schema_valid(name: str) -> None:
     schema = etree.XMLSchema(etree.parse(str(external("EAFv3.0.xsd"))))
