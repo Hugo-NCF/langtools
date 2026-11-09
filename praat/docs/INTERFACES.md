@@ -59,6 +59,46 @@ never goes backward. Undoing back to saved content clears dirty state. Snapshot
 history is deliberately simple and unbounded in this prototype; profile and
 bound it before claiming large-corpus editing support.
 
+## Analysis contracts
+
+`analysis.contracts` defines the shared settings, request and result types for
+R1 analyses (issue #12). It contains no algorithms. Each analysis is a pure
+function from a Sound/frames and an `AnalysisRequest` to one result type.
+
+- **Request:** `AnalysisRequest(source_id, revision, settings, time_range,
+  channels, token)`. `TimeRange` is half-open `[start, end)` in source seconds,
+  stored as canonical floats. Every result's frame centres must lie in that range
+  (within 1e-9 frame steps, matching `frame_range`), so a result in local or wrong
+  coordinates is rejected at construction. Its declared domain may be wider.
+  `ChannelPolicy.single(i)` is zero-based. `ChannelPolicy.combined()` means the
+  method's documented multichannel rule; a method without one rejects it. There is
+  no implicit downmix.
+- **Settings:** `SpectrogramSettings`, `PitchSettings` (filtered AC),
+  `FormantSettings` (Burg) and `IntensitySettings` are frozen and validated.
+  `time_step=None` means automatic; the result's axis records the resolved
+  step. Defaults are reference *candidates* from the manual and source until the
+  pinned executable is captured.
+- **Provenance:** `Provenance(request, Algorithm(id, version))`. `record()` is
+  JSON for export. `cache_key` hashes source identity, revision, channel policy,
+  range, every setting and the algorithm version, and excludes the request token.
+  Bump `Algorithm.version` whenever numerical output can change.
+- **Stale results:** every result carries its provenance. `accept(result,
+  source_id, revision, token)` is the single check a GUI uses to drop stale or
+  out-of-order results.
+
+| Result | Axes | Arrays (axis 0 = frame) | Units | Undefined |
+|---|---|---|---|---|
+| `Spectrogram` | `time`, `frequency` (both `SampledAxis`) | `power (frames, bins)`, `valid` | Pa²/Hz, linear | NaN + `valid=False` |
+| `Pitch` | `time`; `ceiling` Hz | `candidate_frequency/strength (frames, slots)`, `candidate_count`, `chosen`, `intensity` | Hz, ratio | unvoiced candidate = NaN Hz; `voiced` is `0 < f < ceiling` |
+| `Formant` | `time` | `frequency/bandwidth (frames, slots)` sorted, `count`, `intensity` | Hz, Pa² | slots ≥ `count` are NaN |
+| `Intensity` | `time` | `values (frames,)` | dB re 2e-5 Pa | NaN, `valid` derived |
+
+Stored values are always physical. For the spectrogram, dB conversion, display
+pre-emphasis, autoscaling, dynamic range and grey mapping are separate pure
+display/query functions, so GUI and CLI read identical numbers. This does not apply
+to analysis preprocessing: Burg formants must still pre-emphasise the signal
+numerically from `FormantSettings.preemphasis_from` before LPC. Arrays are read-only, like `Sound.samples`.
+
 ## UI and future analysis
 
 - The optional `gui` package alone imports Qt/PyQtGraph. Headless imports work
@@ -68,8 +108,7 @@ bound it before claiming large-corpus editing support.
 - Worker waveform results carry a generation token; viewport/source changes
   cancel and invalidate previous requests immediately.
 - Add analysis as independent pure functions behind a service that accepts an
-  immutable source revision and explicit settings. Agree result types (axis,
-  values, units, validity, parameters/provenance) in a small contract PR first.
+  immutable source revision and explicit settings, using the contract below.
 - No playback implementation exists yet. Use an injectable transport with a
   deterministic fake; do not use a GUI timer as the source clock.
 
