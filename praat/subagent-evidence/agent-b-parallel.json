@@ -1,0 +1,47 @@
+{
+  "agent": "agent-b",
+  "status": "completed",
+  "barrier": "praat/subagent-evidence/parallel-go.json",
+  "started_at_utc": "2026-11-06T23:45:06.620682+00:00",
+  "monotonic_start_ns": 701901753753166,
+  "ended_at_utc": "2026-11-06T23:45:14.627930+00:00",
+  "monotonic_end_ns": 701909760967750,
+  "elapsed_seconds": 8.007214584,
+  "intentional_concurrency_probe_sleep_seconds": 8,
+  "observed_checks": {
+    "path": "praat/REIMPLEMENTATION.md",
+    "exists": true,
+    "bytes": 140491,
+    "title": "Praat / LangTools — Master Reimplementation Specification",
+    "numbered_main_chapter_count": 19,
+    "numbered_main_chapter_heading_level": 2,
+    "numbered_main_chapter_headings": [
+      "1. Provenance, evidence and design authority",
+      "2. Product goal, workflow and phased coverage",
+      "3. Architecture, stack and ownership",
+      "4. Domain objects, Sound and time coordinates",
+      "5. Audio I/O, codecs and long recordings",
+      "6. Spectrogram, waveform and visual analysis",
+      "7. Pitch analysis and candidate/path compatibility",
+      "8. Burg formants and numerical sensitivities",
+      "9. Intensity, pulses and voice-measure research",
+      "10. TextGrid annotation commands and editor state",
+      "11. Annotation domain invariants, TextGrid codec and safe persistence",
+      "12. Automation, formulas and staged Praat scripting",
+      "13. Manipulation, transforms and synthesis roadmap",
+      "14. Workspace UI, menus, dialogs and keyboard routing",
+      "15. Screenshot fidelity, typography and accessible rendering",
+      "16. Shared service contracts and asynchronous integration",
+      "17. Cross-platform deployment, validation and release gates",
+      "18. Delivery milestones, unresolved discrepancies and maintenance",
+      "19. Primary references and research navigation"
+    ],
+    "chapter_count_method": "Count numbered Markdown headings at the shallowest heading level containing numbered headings."
+  },
+  "requested_dispatch": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "interpretation": "Dispatch metadata only; server routing not independently introspected."
+  },
+  "scope": "File existence, byte length, title, and numbered main chapter headings only; no scientific-content correctness claim."
+}

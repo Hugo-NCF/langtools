@@ -1,0 +1,19 @@
+{
+  "test": "local_ollama_attempt",
+  "exit_code": 1,
+  "provider": "ollama",
+  "requested_model": "gpt-oss:20b",
+  "endpoint": "http://localhost:11434/v1/models",
+  "observed_error": "No running Ollama server detected; connection refused",
+  "local_inference_succeeded": false,
+  "installed_tools_observed": {
+    "ollama": false,
+    "lms": false
+  },
+  "ports_reachable": {
+    "11434": false,
+    "1234": false
+  },
+  "cloud_provider_api_environment_variables_present": false,
+  "credential_check_scope": "Only boolean presence of named process environment variables; no credential files inspected."
+}

@@ -1,0 +1,41 @@
+{
+  "task": "LangTools synchronized second concurrency probe, agent A",
+  "observed_checks": [
+    {
+      "path": ".codex/config.toml",
+      "tomllib_valid": true,
+      "setting_paths": [
+        "agents.default_subagent_model",
+        "agents.default_subagent_reasoning_effort"
+      ],
+      "configured_model": "gpt-6.1-sol",
+      "model_is_gpt_6_1_sol": true,
+      "configured_reasoning_effort": "high",
+      "reasoning_is_high": true
+    },
+    {
+      "path": ".codex/agents/project-reviewer.toml",
+      "tomllib_valid": true,
+      "setting_paths": [
+        "model",
+        "model_reasoning_effort"
+      ],
+      "configured_model": "gpt-6.1-sol",
+      "model_is_gpt_6_1_sol": true,
+      "configured_reasoning_effort": "high",
+      "reasoning_is_high": true
+    }
+  ],
+  "start": {
+    "utc": "2026-11-06T23:45:06.642038+00:00",
+    "monotonic_ns": 701901775119875
+  },
+  "end": {
+    "utc": "2026-11-06T23:45:14.649658+00:00",
+    "monotonic_ns": 701909782643583
+  },
+  "elapsed_seconds": 8.007523708,
+  "intentional_sleep_seconds": 8,
+  "barrier_path": "praat/subagent-evidence/parallel-go.json",
+  "model_provenance": "Requested model is tool dispatch metadata, not introspection of server routing."
+}
