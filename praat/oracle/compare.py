@@ -2,6 +2,7 @@
 
 Records discrepancies; it does not assume or claim numerical parity.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,10 +42,23 @@ def parse_praat_text(path: Path) -> dict:
         raise ValueError(f"Expected {nx * ny} cells, found {len(cells)} in {path}")
     # Praat's z[frequency_row][time_column]; candidate stores [time][frequency].
     values = [[cells[(f + 1, t + 1)] for f in range(ny)] for t in range(nx)]
-    return {"time": {"xmin": axes["xmin"], "xmax": axes["xmax"], "nx": nx,
-                     "dx": axes["dx"], "x1": axes["x1"]},
-            "frequency": {"xmin": axes["ymin"], "xmax": axes["ymax"], "nx": ny,
-                          "dx": axes["dy"], "x1": axes["y1"]}, "power_frame_major": values}
+    return {
+        "time": {
+            "xmin": axes["xmin"],
+            "xmax": axes["xmax"],
+            "nx": nx,
+            "dx": axes["dx"],
+            "x1": axes["x1"],
+        },
+        "frequency": {
+            "xmin": axes["ymin"],
+            "xmax": axes["ymax"],
+            "nx": ny,
+            "dx": axes["dy"],
+            "x1": axes["y1"],
+        },
+        "power_frame_major": values,
+    }
 
 
 def compare(reference: dict, candidate: dict, *, atol: float, rtol: float) -> dict:
@@ -58,15 +72,18 @@ def compare(reference: dict, candidate: dict, *, atol: float, rtol: float) -> di
                 disagreements.append({"axis": axis, "field": field, "praat": a, "candidate": b})
     ref, got = reference["power_frame_major"], candidate["power_frame_major"]
     if len(ref) != len(got) or (len(ref) and len(got) and len(ref[0]) != len(got[0])):
-        return {"status": "shape_mismatch", "axis_discrepancies": disagreements,
-                "reference_shape": [len(ref), len(ref[0]) if ref else 0],
-                "candidate_shape": [len(got), len(got[0]) if got else 0]}
+        return {
+            "status": "shape_mismatch",
+            "axis_discrepancies": disagreements,
+            "reference_shape": [len(ref), len(ref[0]) if ref else 0],
+            "candidate_shape": [len(got), len(got[0]) if got else 0],
+        }
     mismatches = 0
     max_abs = 0.0
     max_rel = 0.0
     worst = None
-    for t, (ref_row, got_row) in enumerate(zip(ref, got)):
-        for f, (a, b) in enumerate(zip(ref_row, got_row)):
+    for t, (ref_row, got_row) in enumerate(zip(ref, got, strict=True)):
+        for f, (a, b) in enumerate(zip(ref_row, got_row, strict=True)):
             delta = abs(a - b)
             rel = delta / max(abs(a), 1e-30)
             if delta > max_abs:
@@ -75,11 +92,16 @@ def compare(reference: dict, candidate: dict, *, atol: float, rtol: float) -> di
             max_rel = max(max_rel, rel)
             if not math.isclose(a, b, abs_tol=atol, rel_tol=rtol):
                 mismatches += 1
-    return {"status": "match" if not disagreements and not mismatches else "discrepancy",
-            "axis_discrepancies": disagreements, "mismatched_cells": mismatches,
-            "total_cells": sum(map(len, ref)), "maximum_absolute_error": max_abs,
-            "maximum_relative_error": max_rel, "worst_cell": worst,
-            "tolerances": {"absolute": atol, "relative": rtol}}
+    return {
+        "status": "match" if not disagreements and not mismatches else "discrepancy",
+        "axis_discrepancies": disagreements,
+        "mismatched_cells": mismatches,
+        "total_cells": sum(map(len, ref)),
+        "maximum_absolute_error": max_abs,
+        "maximum_relative_error": max_rel,
+        "worst_cell": worst,
+        "tolerances": {"absolute": atol, "relative": rtol},
+    }
 
 
 def _candidate_json(path: Path) -> dict:
@@ -90,14 +112,16 @@ def _commit() -> str:
     try:
         return subprocess.check_output(
             ["git", "-C", str(HERE), "rev-parse", "HEAD"],
-            text=True, stderr=subprocess.DEVNULL,
+            text=True,
+            stderr=subprocess.DEVNULL,
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return "UNAVAILABLE"
 
 
-def compare_capture(entry: dict, oracle_dir: Path, candidate_dir: Path,
-                    *, atol: float, rtol: float) -> dict:
+def compare_capture(
+    entry: dict, oracle_dir: Path, candidate_dir: Path, *, atol: float, rtol: float
+) -> dict:
     """Compare a capture, including expected failures and stereo channel policies."""
     name = entry["fixture"]
     is_stereo = name == "stereo_different"
@@ -110,17 +134,21 @@ def compare_capture(entry: dict, oracle_dir: Path, candidate_dir: Path,
         reference_error = (entry.get("stderr", "") + "\n" + entry.get("stdout", "")).lower()
         candidate_error = str(candidate.get("error", "")).lower()
         # Require the correct failure *reason*, not merely two nonzero exit codes.
-        expected_reference = (entry["status"] == "failed"
-                              and entry.get("returncode") not in (None, 0)
-                              and "too short" in reference_error
-                              and "window lengths" in reference_error)
-        expected_candidate = ("too short" in candidate_error
-                              and "window lengths" in candidate_error)
-        return {"status": "expected_error_match" if expected_reference and expected_candidate
-                else "error_behavior_discrepancy",
-                "reference_returncode": entry.get("returncode"),
-                "reference_error": reference_error.splitlines()[0:3],
-                "candidate_error": candidate.get("error")}
+        expected_reference = (
+            entry["status"] == "failed"
+            and entry.get("returncode") not in (None, 0)
+            and "too short" in reference_error
+            and "window lengths" in reference_error
+        )
+        expected_candidate = "too short" in candidate_error and "window lengths" in candidate_error
+        return {
+            "status": "expected_error_match"
+            if expected_reference and expected_candidate
+            else "error_behavior_discrepancy",
+            "reference_returncode": entry.get("returncode"),
+            "reference_error": reference_error.splitlines()[0:3],
+            "candidate_error": candidate.get("error"),
+        }
 
     if entry["status"] != "ok" or not entry.get("output"):
         return {"status": "oracle_failure", "oracle_run": entry["status"]}
@@ -132,8 +160,11 @@ def compare_capture(entry: dict, oracle_dir: Path, candidate_dir: Path,
         checks = {}
         for policy in ("left", "right"):
             path = candidate_dir / f"{name}_{policy}.json"
-            checks[policy] = (compare(reference, _candidate_json(path), atol=atol, rtol=rtol)
-                              if path.exists() else {"status": "missing_candidate"})
+            checks[policy] = (
+                compare(reference, _candidate_json(path), atol=atol, rtol=rtol)
+                if path.exists()
+                else {"status": "missing_candidate"}
+            )
         result["individual_channel_checks"] = checks
     return result
 
@@ -147,14 +178,18 @@ def main() -> None:
     parser.add_argument("--rtol", type=float, default=1e-4)
     args = parser.parse_args()
     captures = json.loads((args.oracle / "evidence.json").read_text(encoding="utf-8"))
-    results = {"schema": "langtools-praat-comparison/v2",
-               "oracle_evidence": str(args.oracle / "evidence.json"),
-               "candidate_commit": _commit(),
-               "tolerances": {"absolute": args.atol, "relative": args.rtol}, "fixtures": []}
+    results = {
+        "schema": "langtools-praat-comparison/v2",
+        "oracle_evidence": str(args.oracle / "evidence.json"),
+        "candidate_commit": _commit(),
+        "tolerances": {"absolute": args.atol, "relative": args.rtol},
+        "fixtures": [],
+    }
     for entry in captures["runs"]:
         try:
-            data = compare_capture(entry, args.oracle, args.candidate,
-                                   atol=args.atol, rtol=args.rtol)
+            data = compare_capture(
+                entry, args.oracle, args.candidate, atol=args.atol, rtol=args.rtol
+            )
         except (ValueError, KeyError, UnicodeError, OSError) as exc:
             data = {"status": "parse_error", "detail": str(exc)}
         results["fixtures"].append({"fixture": entry["fixture"], **data})
