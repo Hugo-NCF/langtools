@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
+import subprocess
 import wave
 from pathlib import Path
 
@@ -24,6 +26,86 @@ from langtools_praat.model.sound import Sound
 from langtools_praat.model.time import SampledAxis
 
 HERE = Path(__file__).resolve().parent
+
+
+# These are the imported Python modules that define the candidate analysis path.
+_SOURCE_MODULES = (
+    "langtools_praat.analysis.spectrogram",
+    "langtools_praat.analysis.contracts",
+    "langtools_praat.model.sound",
+    "langtools_praat.model.time",
+    "langtools_praat.errors",
+)
+
+
+def candidate_source_identity() -> dict:
+    """Fingerprint imported implementation files at export time, not compare time.
+
+    Git HEAD is reported only as repository context. A clean status requires
+    every fingerprinted module to match the corresponding tracked HEAD blob.
+    """
+    module_hashes = {}
+    roots = set()
+    commits = set()
+    modified = False
+    unversioned = False
+
+    for name in _SOURCE_MODULES:
+        module = importlib.import_module(name)
+        module_file = Path(module.__file__).resolve()
+        digest = hashlib.sha256(module_file.read_bytes()).hexdigest()
+        module_hashes[name] = digest
+
+        try:
+            root_result = subprocess.run(
+                ["git", "-C", str(module_file.parent), "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if root_result.returncode != 0:
+                unversioned = True
+                continue
+            root = Path(root_result.stdout.strip()).resolve()
+            relative = module_file.relative_to(root).as_posix()
+            commit_result = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if commit_result.returncode != 0:
+                unversioned = True
+                continue
+            commit = commit_result.stdout.strip()
+            roots.add(str(root))
+            commits.add(commit)
+            tracked = subprocess.run(
+                ["git", "-C", str(root), "show", f"HEAD:{relative}"],
+                capture_output=True,
+                check=False,
+            )
+            if tracked.returncode != 0 or hashlib.sha256(tracked.stdout).hexdigest() != digest:
+                modified = True
+        except (OSError, ValueError):
+            unversioned = True
+
+    if len(roots) > 1 or len(commits) > 1 or (unversioned and roots):
+        status = "mixed"
+    elif unversioned:
+        status = "unversioned"
+    elif modified:
+        status = "modified"
+    else:
+        status = "clean"
+
+    return {
+        "schema": "langtools-praat-candidate-source/v1",
+        "git_commit": next(iter(commits)) if len(commits) == 1 else None,
+        "source_status": status,
+        "modules_sha256": module_hashes,
+        "numpy_version": np.__version__,
+    }
 
 
 def sound_from_pcm16(path: Path) -> Sound:
@@ -47,7 +129,10 @@ def axis_dict(axis) -> dict:
 
 
 def export(inputs: Path, output: Path) -> None:
-    manifest = json.loads((inputs / "manifest.json").read_text(encoding="utf-8"))
+    manifest_bytes = (inputs / "manifest.json").read_bytes()
+    manifest = json.loads(manifest_bytes)
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    source_identity = candidate_source_identity()
     output.mkdir(parents=True, exist_ok=True)
     for item in manifest["files"]:
         path = inputs / item["file"]
@@ -71,6 +156,15 @@ def export(inputs: Path, output: Path) -> None:
             else [("mono", ChannelPolicy.single(0))]
         ):
             name = item["name"] + ("_" + variant if sound.channels > 1 else "")
+            identity = {
+                "schema": "langtools-praat-candidate-spectrogram/v1",
+                "fixture": item["name"],
+                "channel_policy": variant,
+                "input_sha256": item["sha256"],
+                "manifest_sha256": manifest_sha256,
+                "candidate_source": source_identity,
+                "settings": selected_settings,
+            }
             request = AnalysisRequest(
                 source_id=sound.id,
                 revision=sound.revision,
@@ -82,10 +176,7 @@ def export(inputs: Path, output: Path) -> None:
                 result = to_spectrogram(sound, request)
                 image = display(result, DisplaySettings())
                 data = {
-                    "schema": "langtools-praat-candidate-spectrogram/v1",
-                    "fixture": item["name"],
-                    "channel_policy": variant,
-                    "settings": selected_settings,
+                    **identity,
                     "time": axis_dict(result.time),
                     "frequency": axis_dict(result.frequency),
                     "power_frame_major": result.power.tolist(),
@@ -98,9 +189,7 @@ def export(inputs: Path, output: Path) -> None:
                 }
             except Exception as exc:
                 data = {
-                    "schema": "langtools-praat-candidate-spectrogram/v1",
-                    "fixture": item["name"],
-                    "channel_policy": variant,
+                    **identity,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
             (output / f"{name}.json").write_text(

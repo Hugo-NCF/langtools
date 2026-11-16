@@ -21,6 +21,12 @@ def render(evidence: dict, comparison: dict) -> str:
     pin = evidence["reference_pin"]
     settings = evidence["settings"]
     by_name = {entry["fixture"]: entry for entry in comparison["fixtures"]}
+    candidate_source = comparison.get("candidate_source")
+    if not isinstance(candidate_source, dict):
+        candidate_source = {}
+    candidate_git_head = candidate_source.get("git_commit") or "UNKNOWN"
+    candidate_status = candidate_source.get("source_status") or "UNKNOWN (legacy/unverified)"
+    module_hashes = candidate_source.get("modules_sha256") or {}
     lines = [
         "# Observed Praat Gaussian spectrogram reference results",
         "",
@@ -39,7 +45,11 @@ def render(evidence: dict, comparison: dict) -> str:
         f"- Installed Praat executable SHA-256: `{pin['sha256']}`",
         f"- Reference OS/CPU: `{evidence['os']}` / `{evidence['cpu']}`",
         f"- Reference capture source commit: `{evidence['source_commit']}`",
-        f"- Candidate comparison commit: `{comparison.get('candidate_commit', 'UNAVAILABLE')}`",
+        f"- Candidate generation Git HEAD (source repository): `{candidate_git_head}`",
+        f"- Candidate source status: `{candidate_status}`",
+        f"- Candidate imported module SHA-256s: `{json.dumps(module_hashes, sort_keys=True)}`",
+        "- Git HEAD alone is not a clean-source attribution if the source status is modified,",
+        "  mixed, or unversioned; module hashes identify the actual imported files.",
         f"- Fixture manifest SHA-256: `{evidence['fixture_manifest_sha256']}`",
         f"- Captured UTC: `{evidence['utc']}`",
         "- Executable provenance: official Praat macOS distribution; exact installer URL/hash",
@@ -66,7 +76,8 @@ def render(evidence: dict, comparison: dict) -> str:
         "",
         "## Fixture-by-fixture results",
         "",
-        f"Exploratory comparison thresholds: `atol={comparison['tolerances']['absolute']}`, "(
+        (
+            f"Exploratory comparison thresholds: `atol={comparison['tolerances']['absolute']}`, "
             f"`rtol={comparison['tolerances']['relative']}`. "
             "These are **not** formally agreed parity thresholds."
         ),
@@ -132,6 +143,8 @@ def render(evidence: dict, comparison: dict) -> str:
             + "."
         )
     lines += [
+        "- Historical comparisons lacking generation-time candidate metadata cannot",
+        "  establish which candidate implementation produced the observed numbers.",
         "- Raw-power comparisons establish numerical agreement only at the stated thresholds;",
         "  they do **not** establish that the label `Pa^2/Hz` is physically correct.",
         "- FFT-bin alignment is covered by axis comparisons; interpretation of the 8x",
