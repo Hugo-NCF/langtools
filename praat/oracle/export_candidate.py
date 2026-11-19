@@ -14,7 +14,6 @@ import wave
 from pathlib import Path
 
 import numpy as np
-from langtools_praat.analysis.spectrogram import DisplaySettings, display, to_spectrogram
 
 from langtools_praat.analysis.contracts import (
     AnalysisRequest,
@@ -22,6 +21,7 @@ from langtools_praat.analysis.contracts import (
     SpectrogramSettings,
     TimeRange,
 )
+from langtools_praat.analysis.spectrogram import DisplaySettings, display, to_spectrogram
 from langtools_praat.model.sound import Sound
 from langtools_praat.model.time import SampledAxis
 

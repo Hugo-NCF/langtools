@@ -10,6 +10,8 @@ import argparse
 import json
 from pathlib import Path
 
+from oracle.compare import evidence_sha256
+
 HERE = Path(__file__).resolve().parent
 
 
@@ -18,6 +20,12 @@ def _number(value: object) -> str:
 
 
 def render(evidence: dict, comparison: dict) -> str:
+    expected_digest = comparison.get("oracle_evidence_sha256")
+    if not isinstance(expected_digest, str) or expected_digest != evidence_sha256(evidence):
+        raise ValueError(
+            "Reference evidence SHA-256 missing or mismatch; "
+            "rerun oracle.compare with the intended evidence"
+        )
     pin = evidence["reference_pin"]
     settings = evidence["settings"]
     by_name = {entry["fixture"]: entry for entry in comparison["fixtures"]}
@@ -45,6 +53,7 @@ def render(evidence: dict, comparison: dict) -> str:
         f"- Installed Praat executable SHA-256: `{pin['sha256']}`",
         f"- Reference OS/CPU: `{evidence['os']}` / `{evidence['cpu']}`",
         f"- Reference capture source commit: `{evidence['source_commit']}`",
+        f"- Comparison-bound evidence SHA-256: `{comparison['oracle_evidence_sha256']}`",
         f"- Candidate generation Git HEAD (source repository): `{candidate_git_head}`",
         f"- Candidate source status: `{candidate_status}`",
         f"- Candidate imported module SHA-256s: `{json.dumps(module_hashes, sort_keys=True)}`",

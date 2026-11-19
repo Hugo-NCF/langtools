@@ -5,8 +5,18 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from oracle.compare import compare, compare_capture, parse_praat_text, verified_candidate_source
+from oracle.compare import (
+    compare,
+    compare_capture,
+    evidence_sha256,
+    parse_praat_text,
+    verified_candidate_source,
+)
+from oracle.compare import (
+    main as compare_main,
+)
 from oracle.generate_fixtures import generate
 from oracle.run_reference import script_for
 from oracle.summarize import render
@@ -369,6 +379,7 @@ z [1] [1] = 1
             "runs": [],
         }
         comparison = {
+            "oracle_evidence_sha256": evidence_sha256(evidence),
             "candidate_commit": "candidate",
             "tolerances": {"absolute": 1e-9, "relative": 1e-4},
             "fixtures": [],
@@ -379,6 +390,72 @@ z [1] [1] = 1
         comparison["candidate_source"] = self._candidate_identity("sine_1000")["candidate_source"]
         report = render(evidence, comparison)
         self.assertIn("`" + "c" * 40 + "`", report)
+
+    def test_summary_rejects_swapped_evidence_with_same_fixture_name(self):
+        evidence_a = {
+            "reference_pin": {"version_reported": "Praat", "sha256": "abc"},
+            "os": "macOS",
+            "cpu": "arm64",
+            "source_commit": "reference",
+            "fixture_manifest_sha256": "a" * 64,
+            "utc": "2026-11-16",
+            "settings": {
+                "window_length_s": 0.005,
+                "maximum_frequency_hz": 5000,
+                "time_step_s": 0.002,
+                "frequency_step_hz": 20,
+                "window_shape": "Gaussian",
+            },
+            "runs": [
+                {
+                    "fixture": "sine_1000",
+                    "status": "ok",
+                    "input_sha256": "b" * 64,
+                    "output_sha256": "c" * 64,
+                    "settings": {"window_length_s": 0.005},
+                }
+            ],
+        }
+        comparison_a = {
+            "oracle_evidence_sha256": evidence_sha256(evidence_a),
+            "tolerances": {"absolute": 1e-9, "relative": 1e-4},
+            "fixtures": [{"fixture": "sine_1000", "status": "match"}],
+        }
+        report = render(evidence_a, comparison_a)
+        self.assertIn("`sine_1000` | `ok` | `match`", report)
+        self.assertIn(comparison_a["oracle_evidence_sha256"], report)
+
+        # The fixture name stays identical, but the evidence identity changes.
+        evidence_b = json.loads(json.dumps(evidence_a))
+        evidence_b["runs"][0]["input_sha256"] = "d" * 64
+        with self.assertRaisesRegex(ValueError, "evidence SHA-256"):
+            render(evidence_b, comparison_a)
+        with self.assertRaisesRegex(ValueError, "evidence SHA-256"):
+            render(evidence_a, {**comparison_a, "oracle_evidence_sha256": None})
+
+    def test_comparison_cli_records_evidence_digest(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            oracle_dir = root / "captures"
+            oracle_dir.mkdir()
+            evidence = {"fixture_manifest_sha256": "a" * 64, "runs": []}
+            (oracle_dir / "evidence.json").write_text(json.dumps(evidence))
+            output = root / "comparison.json"
+            with patch(
+                "sys.argv",
+                [
+                    "oracle.compare",
+                    "--oracle",
+                    str(oracle_dir),
+                    "--candidate",
+                    str(root / "candidate"),
+                    "--output",
+                    str(output),
+                ],
+            ):
+                compare_main()
+            result = json.loads(output.read_text())
+            self.assertEqual(result["oracle_evidence_sha256"], evidence_sha256(evidence))
 
 
 if __name__ == "__main__":

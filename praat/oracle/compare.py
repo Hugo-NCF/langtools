@@ -18,6 +18,12 @@ CELL = re.compile(rf"^\s*z\s*\[\s*(\d+)\s*\]\s*\[\s*(\d+)\s*\]\s*=\s*({NUMBER})\
 AXIS = re.compile(rf"^\s*(xmin|xmax|nx|dx|x1|ymin|ymax|ny|dy|y1)\s*=\s*({NUMBER})\s*$")
 
 
+def evidence_sha256(evidence: dict) -> str:
+    """Hash the canonical reference evidence object used for a comparison."""
+    canonical = json.dumps(evidence, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def parse_praat_text(path: Path) -> dict:
     text = path.read_text(encoding="utf-8-sig")
     if '"Spectrogram' not in text:
@@ -304,6 +310,7 @@ def main() -> None:
     results = {
         "schema": "langtools-praat-comparison/v2",
         "oracle_evidence": str(args.oracle / "evidence.json"),
+        "oracle_evidence_sha256": evidence_sha256(captures),
         "candidate_source": None,
         "candidate_commit": "UNVERIFIED",
         "tolerances": {"absolute": args.atol, "relative": args.rtol},
